@@ -3,93 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>المسح المغناطيسي الميداني</title>
-
+<title>المسح المغناطيسي الاحترافي - نسخة مستقرة</title>
 <style>
-body{
-    font-family:Arial, sans-serif;
-    text-align:center;
-    background:#f4f7f6;
-    padding:15px;
-}
-
-.card{
-    background:#fff;
-    padding:15px;
-    border-radius:15px;
-    max-width:400px;
-    margin:auto;
-    box-shadow:0 2px 10px rgba(0,0,0,.1);
-}
-
-.box{
-    background:#eee;
-    padding:10px;
-    border-radius:10px;
-    margin:10px;
-    text-align:right;
-}
-
-button{
-    width:100%;
-    padding:12px;
-    margin:5px 0;
-    border:0;
-    border-radius:8px;
-    color:#fff;
-    font-size:16px;
-    cursor:pointer;
-    font-weight: bold;
-}
-
+body{font-family:Arial, sans-serif;text-align:center;background:#f4f7f6;padding:15px}
+.card{background:#fff;padding:15px;border-radius:15px;max-width:400px;margin:auto;box-shadow: 0 4px 10px rgba(0,0,0,0.1);}
+.box{background:#eee;padding:10px;border-radius:10px;margin:10px;text-align:right}
+button{width:100%;padding:12px;margin:5px 0;border:0;border-radius:8px;color:#fff;font-size:16px;cursor:pointer;transition: 0.2s;}
+button:active{transform: scale(0.98);}
 .b{background:#3498db}
 .g{background:#2ecc71}
 .o{background:#f39c12}
 .r{background:#e74c3c}
-.p{background:#9b59b6}
+.stop-mode {background:#e74c3c !important;}
 
-.stop-mode{
-    background:#e74c3c !important;
-}
-
-.btn-group{
-    display:flex;
-    gap:10px;
-    margin:5px 0;
-}
-
-.btn-group button{
-    flex:1;
-    margin:0;
-}
-
-.status-log {
-    font-size: 12px;
-    color: #7f8c8d;
-    margin-top: 5px;
-    min-height: 18px;
-}
+.btn-group {display: flex; gap: 10px; margin: 5px 0;}
+.btn-group button {flex: 1; margin: 0;}
 </style>
 </head>
-
 <body>
 
 <div class="card">
 
-<h3>المسح المغناطيسي الميداني</h3>
+<h3>المسح المغناطيسي العلمي المطور</h3>
+
+<div style="font-size: 12px; color: #7f8c8d; text-align: left; padding: 0 10px;" id="status-mode">الوضع: متوقف</div>
 
 <div class="box">
-<div>العمود الحركي: <span id="line">1</span></div>
-<div>الخطوة الحركية: <span id="step">0</span></div>
-<div>أقصى عمود مسجل: <span id="lines">1</span></div>
-<div>أقصى خطوة مسجلة: <span id="steps">0</span></div>
+<div>العمود الحالي: <span id="line">1</span></div>
+<div>الخطوة الحالية في العمود: <span id="step">0</span></div>
+<hr>
+<div>إجمالي الأعمدة: <span id="lines">1</span></div>
+<div>إجمالي الخطوات الكلية المسجلة: <span id="steps">0</span></div>
 </div>
 
 <div class="box">
-X (µT): <span id="x">0</span><br>
-Y (µT): <span id="y">0</span><br>
-Z (µT): <span id="z">0</span><br>
-Total (µT): <span id="t">0</span>
+X (ميكروتسلا): <span id="cx">0</span><br>
+Y (ميكروتسلا): <span id="cy">0</span><br>
+Z (ميكروتسلا): <span id="cz">0</span><br>
+إجمالي الشدة (Total): <span id="ct">0</span>
 </div>
 
 <button class="b" id="btn" onclick="toggle()">
@@ -97,200 +48,196 @@ Total (µT): <span id="t">0</span>
 </button>
 
 <div class="btn-group">
-<button class="g" onclick="changeStep(1)">+ خطوة</button>
-<button class="r" onclick="changeStep(-1)">- خطوة</button>
+    <button class="g" onclick="changeStep(1)">+ خطوة وتسجيل</button>
+    <button class="r" onclick="changeStep(-1)">- تراجع عن خطوة</button>
 </div>
 
 <div class="btn-group">
-<button class="o" onclick="changeLine(1)">+ عمود</button>
-<button class="r" onclick="changeLine(-1)">- عمود</button>
+    <button class="o" onclick="changeLine(1)">+ عمود جديد</button>
+    <button class="r" onclick="changeLine(-1)">- تراجع عن عمود</button>
 </div>
 
-<button class="g" style="background:#27ae60; margin: 10px 0;" onclick="savePoint()">
-💾 حفظ القراءة الحالية
-</button>
-
-<button class="p" onclick="saveToCSV()">
-تحميل ملف CSV
-</button>
-
-<div class="status-log" id="log">مستعد لبدء المسح...</div>
+<button style="background: #2c3e50;" onclick="saveCSV()">تحميل ملف CSV</button>
+<button style="background: #7f8c8d;" onclick="resetData()">مسح السجل وإعادة التعيين</button>
 
 </div>
 
 <script>
-// إعداد سياق الصوت (Audio Context) لتوليد نغمة الرنين
-let audioCtx = null;
+let on = false;
+let magnetometer = null;
+let line = 1, step = 0, lines = 1, steps = 0;
+let mx = 0, my = 0, mz = 0, total = 0;
+let dataLog = []; 
 
-function playBeep(frequency = 600, duration = 150) {
-    try {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        let oscillator = audioCtx.createOscillator();
-        let gainNode = audioCtx.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        
-        oscillator.type = 'sine';
-        oscillator.frequency.value = frequency; 
-        gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
-        
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + (duration / 1000));
-    } catch(e) {
-        console.log("الصوت غير مدعوم أو يتطلب تفاعلاً أولاً");
+let smoothedX = 0, smoothedY = 0, smoothedZ = 0;
+const alpha = 0.15; 
+
+const txtX = document.getElementById("cx");
+const txtY = document.getElementById("cy");
+const txtZ = document.getElementById("cz");
+const txtT = document.getElementById("ct");
+const btnToggle = document.getElementById("btn");
+const statusMode = document.getElementById("status-mode");
+
+function toggle() {
+    if (!on) {
+        startSensor();
+    } else {
+        stopSensor();
     }
 }
 
-let on = false;
-
-let line = 1;
-let step = 0;
-let lines = 1;
-let steps = 0;
-let mx = 0;
-let my = 0;
-let mz = 0;
-let total = 0;
-
-let recordedData = [];
-
-// عناصر الصفحة
-let x = document.getElementById("x");
-let y = document.getElementById("y");
-let z = document.getElementById("z");
-let t = document.getElementById("t");
-
-let lineText = document.getElementById("line");
-let stepText = document.getElementById("step");
-let linesText = document.getElementById("lines");
-let stepsText = document.getElementById("steps");
-let logText = document.getElementById("log");
-
-// تشغيل وإيقاف الحساس عبر بروتوكول التوجيه المتوافق مع كروم
-async function toggle(){
-    let btn = document.getElementById("btn");
-
-    if(on){
-        window.removeEventListener("deviceorientation", handleMagneticData);
-        on = false;
-        btn.innerText = "تشغيل الحساس";
-        btn.classList.remove("stop-mode");
-        logText.innerText = "تم إيقاف الحساس.";
+async function startSensor() {
+    // التحقق البرمجي الأول: هل الواجهة الحقيقية مدعومة في المتصفح؟
+    if (!('Magnetometer' in window)) {
+        statusMode.innerText = "الوضع: المتصفح لا يدعم الوصول المباشر للحساس الحقيقي.";
+        alert("المتصفح الحالي يحظر الحساس الحقيقي. يرجى تجربة فتح الرابط عبر متصفح Chrome أو متصفح يدعم المستشعرات.");
         return;
     }
 
-    // طلب الإذن للوصول للمستشعرات التوجيهية في المتصفحات الحديثة
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try {
-            const permissionState = await DeviceOrientationEvent.requestPermission();
-            if (permissionState !== 'granted') {
-                alert('تم رفض إذن الوصول للمستشعرات التوجيهية!');
+    on = true;
+    btnToggle.innerText = "إيقاف الحساس";
+    btnToggle.classList.add("stop-mode");
+
+    try {
+        // طلب الصلاحية برمجياً وبشكل علني لتفادي حظر الكروم والقراءات الصفرية الخاطئة
+        if (navigator.permissions && navigator.permissions.query) {
+            const result = await navigator.permissions.query({ name: 'magnetometer' });
+            if (result.state === 'denied') {
+                statusMode.innerText = "الوضع: مرفوض برمجياً من النظام.";
+                alert("إذن الحساس مرفوض. يرجى تفعيله من إعدادات قفل الموقع الإلكتروني في الكروم.");
+                stopSensor();
                 return;
             }
-        } catch (error) {
-            console.error(error);
         }
-    }
 
-    // تشغيل الصوت عند أول ضغطة لتجاوز حظر المتصفح للصوت التلقائي
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+        // استدعاء الحساس المغناطيسي الحقيقي للمعدن والمجال الأرضي
+        magnetometer = new Magnetometer({ frequency: 20 });
+        
+        magnetometer.addEventListener('reading', () => {
+            // التحقق من القراءة الأولى وبدء تطبيق معادلة التنعيم الحسابية الخاصة بك
+            if (smoothedX === 0 && smoothedY === 0 && smoothedZ === 0) {
+                smoothedX = magnetometer.x;
+                smoothedY = magnetometer.y;
+                smoothedZ = magnetometer.z;
+            } else {
+                smoothedX = smoothedX + alpha * (magnetometer.x - smoothedX);
+                smoothedY = smoothedY + alpha * (magnetometer.y - smoothedY);
+                smoothedZ = smoothedZ + alpha * (magnetometer.z - smoothedZ);
+            }
 
-    window.addEventListener("deviceorientation", handleMagneticData);
-    on = true;
-    btn.innerText = "إيقاف الحساس";
-    btn.classList.add("stop-mode");
-    logText.innerText = "الحساس يعمل حالياً بشكل طبيعي.";
+            // تحويل القيم الرقمية الحقيقية بدقة تامة وبالميكروتسلا الصريحة (µT)
+            mx = smoothedX.toFixed(2);
+            my = smoothedY.toFixed(2);
+            mz = smoothedZ.toFixed(2);
+            
+            // حساب محصلة الشدة الكلية الفيزيائية للحقل المغناطيسي
+            total = Math.sqrt(mx*mx + my*my + mz*mz).toFixed(2);
+            
+            updateUI();
+        });
+
+        magnetometer.addEventListener('error', event => {
+            statusMode.innerText = "خطأ برمجي في الحساس: " + event.error.name;
+            console.error(event.error);
+        });
+
+        magnetometer.start();
+        statusMode.innerText = "الوضع: حساس حقيقي ومستقر (µT)";
+
+    } catch (e) {
+        statusMode.innerText = "تعذر تشغيل الحساس الحقيقي.";
+        console.error(e);
+    }
 }
 
-// استقبال الحقل المغناطيسي من حساس التوجيه بدون حظر المتصفح
-function handleMagneticData(event) {
-    if (event.alpha !== null) {
-        // حساب محاكاة دقيقة للمحاور بناءً على المغناطيسية الأرضية وزوايا ميل الهاتف
-        mx = event.alpha ? Math.sin(event.alpha * Math.PI / 180) * 45 : 0;
-        my = event.beta ? Math.sin(event.beta * Math.PI / 180) * 45 : 0;
-        mz = event.gamma ? Math.sin(event.gamma * Math.PI / 180) * 45 : 0;
+function stopSensor() {
+    on = false;
+    btnToggle.innerText = "تشغيل الحساس";
+    btnToggle.classList.remove("stop-mode");
+    statusMode.innerText = "الوضع: متوقف";
 
-        total = Math.sqrt(mx*mx + my*my + mz*mz);
+    if (magnetometer) {
+        try { magnetometer.stop(); } catch(e){}
+        magnetometer = null;
+    }
+    
+    smoothedX = 0; smoothedY = 0; smoothedZ = 0;
+    mx = 0; my = 0; mz = 0; total = 0;
+    updateUI();
+}
 
-        x.innerText = mx.toFixed(1);
-        y.innerText = my.toFixed(1);
-        z.innerText = mz.toFixed(1);
-        t.innerText = total.toFixed(1);
+function updateUI() {
+    if(txtX) txtX.innerText = mx;
+    if(txtY) txtY.innerText = my;
+    if(txtZ) txtZ.innerText = mz;
+    if(txtT) txtT.innerText = total;
+    
+    document.getElementById("line").innerText = line;
+    document.getElementById("step").innerText = step;
+    document.getElementById("lines").innerText = lines;
+    document.getElementById("steps").innerText = steps;
+}
+
+function changeStep(val) {
+    if (!on) { alert("يرجى تشغيل الحساس أولاً لتسجيل الخطوات!"); return; }
+    if (step + val >= 0) {
+        step += val;
+        if (val > 0) {
+            steps++;
+            dataLog.push({ line: line, step: step, x: mx, y: my, z: mz, total: total });
+        } else if (val < 0 && steps > 0) {
+            steps--;
+            dataLog.pop();
+        }
+        updateUI();
     }
 }
 
-// تغيير الخطوة
-function changeStep(val){
-    if(step + val < 0) return;
-    step += val;
-    if(step > steps){
-        steps = step;
+function changeLine(val) {
+    if (line + val >= 1) {
+        line += val;
+        if (val > 0) {
+            lines++;
+            step = 0; 
+        } else {
+            if(lines > 1) lines--;
+        }
+        updateUI();
     }
-    stepText.innerText = step;
-    stepsText.innerText = steps;
 }
 
-// تغيير العمود
-function changeLine(val){
-    if(line + val < 1) return;
-    line += val;
-    if(line > lines){
-        lines = line;
-    }
-    lineText.innerText = line;
-    linesText.innerText = lines;
-}
-
-// حفظ نقطة ميدانية محمية مع رنين واهتزاز للهاتف
-function savePoint(){
-    if(!on) {
-        alert("الرجاء تشغيل الحساس أولاً قبل تسجيل القراءات!");
+function resetData() {
+    if (dataLog.length === 0) {
+        alert("السجل فارغ بالفعل.");
         return;
     }
-    
-    recordedData.push({
-        line: line,
-        step: step,
-        x: mx,
-        y: my,
-        z: mz,
-        total: total
-    });
-    
-    // إصدار الرنين الصوتي
-    playBeep(600, 150);
-    
-    // تشغيل اهتزاز الهاتف (إذا كان مدعوماً في جهازك)
-    if(navigator.vibrate) {
-        navigator.vibrate(100);
+    if (confirm("هل أنت متأكد من رغبتك في مسح جميع البيانات؟")) {
+        stopSensor();
+        dataLog = [];
+        line = 1; step = 0; lines = 1; steps = 0;
+        mx = 0; my = 0; mz = 0; total = 0;
+        updateUI();
     }
-    
-    logText.innerText = `تم حفظ النقطة: العمود (${line})، الخطوة (${step}) بنجاح!`;
 }
 
-// تحميل ملف الـ CSV لبرنامج Surfer
-function saveToCSV(){
-    if(recordedData.length === 0){
-        alert("لا توجد بيانات مسجلة لحفظها!");
+function saveCSV() {
+    if (dataLog.length === 0) {
+        alert("لا توجد بيانات مسجلة!");
         return;
     }
-
-    let csv = "Line,Step,X,Y,Z,Total\n";
-
-    recordedData.forEach(d => {
-        csv += `${d.line},${d.step},${d.x.toFixed(2)},${d.y.toFixed(2)},${d.z.toFixed(2)},${d.total.toFixed(2)}\n`;
+    let csvContent = "data:text/csv;charset=utf-8,العمود,الخطوة,X,Y,Z,Total\n";
+    dataLog.forEach(row => {
+        csvContent += `${row.line},${row.step},${row.x},${row.y},${row.z},${row.total}\n`;
     });
-
-    let blob = new Blob([csv], {type:"text/csv"});
-    let a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `magnetic_scan_field.csv`;
-    a.click();
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "magnetic_scan_data.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 </script>
 
